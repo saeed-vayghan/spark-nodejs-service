@@ -1,0 +1,58 @@
+services:
+  spark-master:
+    image: bde2020/spark-master:3.1.1-hadoop3.2
+    container_name: spark-master
+    platform: linux/amd64
+    env_file: ./spark.env
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+      - "4040:4040"  # Ensure ports for Spark UI are exposed
+    volumes:
+      - ${PWD}/spark/work:/spark/work
+
+  spark-worker-1:
+    image: bde2020/spark-worker:3.1.1-hadoop3.2
+    container_name: spark-worker-1
+    platform: linux/amd64
+    env_file: ./spark.env
+    ports:
+      - "8081:8081"
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2g
+
+  spark-worker-2:
+    image: bde2020/spark-worker:3.1.1-hadoop3.2
+    container_name: spark-worker-2
+    platform: linux/amd64
+    env_file: ./spark.env
+    ports:
+      - "8082:8082"
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2g
+
+  livy:
+    build:
+      context: .
+      dockerfile: Dockerfile.livy
+    container_name: livy
+    platform: linux/amd64
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    ports:
+      - "8998:8998"
+    volumes:
+      - ${PWD}/parquet_sql.py:/opt/livy/parquet_sql.py  # Mount the Python script
+      - ${PWD}/users.parquet:/opt/livy/users.parquet  # Mount the Parquet file
+      - ${PWD}/log4j.properties:/opt/livy/conf/log4j.properties  # Ensure log4j configuration file is mounted
+      - ${PWD}/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf  # Ensure spark-defaults.conf is mounted
+    depends_on:
+      - spark-master
